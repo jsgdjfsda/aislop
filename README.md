@@ -157,15 +157,16 @@ API documentation will be available at `http://localhost:8080/docs` when the API
 ## Development Roadmap
 
 - [x] Project structure and architecture
-- [ ] Infrastructure setup (Docker Compose)
-- [ ] Device Registry Service
-- [ ] Data Ingestion Service
-- [ ] Rules Engine Service
-- [ ] Analytics Service
-- [ ] Notification Service
-- [ ] User Management Service
-- [ ] API Gateway
-- [ ] Device Simulator
+- [x] Infrastructure setup (Docker Compose)
+- [x] Device Registry Service (Go) ✅
+- [x] Data Ingestion Service (Go) ✅
+- [x] Rules Engine Service (Python) ✅
+- [x] Analytics Service (Python) ✅
+- [x] Notification Service (Node.js) ✅
+- [x] User Management Service (Go) ✅
+- [x] API Gateway (Go) ✅
+- [x] Device Simulator (Python) ✅
+- [x] Complete Testing Guide ✅
 - [ ] Web Dashboard (Future)
 - [ ] Mobile App (Future)
 
