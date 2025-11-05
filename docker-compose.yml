@@ -1,0 +1,149 @@
+version: '3.8'
+
+services:
+  # PostgreSQL - Primary database
+  postgres:
+    image: postgres:16-alpine
+    container_name: smarthome-postgres
+    environment:
+      POSTGRES_USER: smarthome
+      POSTGRES_PASSWORD: smarthome_dev_password
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - smarthome-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smarthome"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # TimescaleDB - Time-series data for telemetry
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: smarthome-timescaledb
+    environment:
+      POSTGRES_USER: telemetry
+      POSTGRES_PASSWORD: telemetry_dev_password
+      POSTGRES_DB: telemetry_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+      - ./infrastructure/init-scripts/timescale-init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - smarthome-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U telemetry"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis - Caching and pub/sub
+  redis:
+    image: redis:7-alpine
+    container_name: smarthome-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - smarthome-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # RabbitMQ - Message broker
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: smarthome-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: smarthome
+      RABBITMQ_DEFAULT_PASS: smarthome_dev_password
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./infrastructure/config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+    networks:
+      - smarthome-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Mosquitto - MQTT Broker
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: smarthome-mosquitto
+    ports:
+      - "1883:1883"   # MQTT port
+      - "9001:9001"   # WebSocket port
+    volumes:
+      - ./infrastructure/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+    networks:
+      - smarthome-network
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-i", "healthcheck", "-W", "3"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Prometheus - Metrics collection (optional for monitoring)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: smarthome-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - smarthome-network
+
+  # Grafana - Monitoring dashboards (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: smarthome-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: grafana-clock-panel
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/config/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./infrastructure/config/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - smarthome-network
+    depends_on:
+      - prometheus
+
+networks:
+  smarthome-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  timescale_data:
+  redis_data:
+  rabbitmq_data:
+  mosquitto_data:
+  mosquitto_logs:
+  prometheus_data:
+  grafana_data:
